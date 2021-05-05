@@ -1,0 +1,19 @@
+project_name     = "epsv2"
+environment_name = "dev"
+gke_location     = "asia-northeast1-a"
+#gcp_project_id   = "xxx"
+
+nodepools = {
+  pool1 = {
+    preemptible  = true
+    node_count   = 1
+    machine_type = "e2-medium"
+  }
+}
+
+master_authorized_networks = [
+  {
+    cidr_block   = "0.0.0.0/0"
+    display_name = "all"
+  }
+]
