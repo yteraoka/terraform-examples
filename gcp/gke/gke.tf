@@ -60,7 +60,7 @@ resource "google_container_cluster" "blue" {
   # https://cloud.google.com/kubernetes-engine/docs/how-to/flexible-pod-cidr
   # Pod の CIDR は追加できる (ただし、全ての node pool が 1.19.8-gke.1000 から 1.20, もしくは 1.20.4-gke.500 以降でなければならない)
   # https://cloud.google.com/kubernetes-engine/docs/how-to/multi-pod-cidr
-  default_max_pods_per_node = 64
+  default_max_pods_per_node = var.default_max_pods_per_node
 
   # Binary Authorization は、Grafeas オープンソース プロジェクトの一部である Kritis 仕様に基づいている
   # https://grafeas.io/
@@ -94,11 +94,18 @@ resource "google_container_cluster" "blue" {
 
   subnetwork = google_compute_subnetwork.subnets["tokyo-01"].id
 
-  # Dataplane V2 を使うので指定しない
+  # Dataplane V2 を使う場合は指定不可
   #network_policy {
   #  enabled = true
   #  provider = "PROVIDER_UNSPECIFIED"
   #}
+  dynamic "network_policy" {
+    for_each = local.network_policy_enabled ? ["dummy"] : []
+    content {
+      enabled  = true
+      provider = var.network_policy_provider
+    }
+  }
 
   pod_security_policy_config {
     enabled = false
@@ -107,6 +114,12 @@ resource "google_container_cluster" "blue" {
   #authenticator_groups_config {
   #  security_group = "gke-security-groups@yourdomain.com"
   #}
+  dynamic "authenticator_groups_config" {
+    for_each = var.authenticator_groups_config_group != "" ? ["dummy"] : []
+    content {
+      security_group = var.authenticator_groups_config_group
+    }
+  }
 
   private_cluster_config {
     # API Server と node 間を private address で通信するように private endpoint を作成する
@@ -128,8 +141,11 @@ resource "google_container_cluster" "blue" {
 
   # https://cloud.google.com/kubernetes-engine/docs/concepts/release-channels
   # UNSPECIFIED (default), RAPID, REGULAR, STABLE
-  release_channel {
-    channel = "REGULAR"
+  dynamic "release_channel" {
+    for_each = var.release_channel == "UNSPECIFIED" ? [] : ["dummy"]
+    content {
+      channel = var.release_channel
+    }
   }
 
   #resource_labels = {}
@@ -174,7 +190,7 @@ resource "google_container_cluster" "blue" {
   # Dataplane V2 は 1.17.9 以降で指定可能
   # https://cloud.google.com/kubernetes-engine/docs/how-to/dataplane-v2
   # Dataplane V2 はベータで node local DNS cache など、一部の機能が動作しない
-  datapath_provider = "ADVANCED_DATAPATH"
+  datapath_provider = var.datapath_provider
 
   # node 内での SNAT は無効にする
   default_snat_status {
@@ -194,6 +210,12 @@ resource "google_container_cluster" "blue" {
     #network_policy_config {
     #  disabled = false
     #}
+    dynamic "network_policy_config" {
+      for_each = var.network_policy_enabled ? [{}] : []
+      content {
+        disabled = false
+      }
+    }
 
     cloudrun_config {
       disabled = true
@@ -346,6 +368,11 @@ resource "google_container_node_pool" "node_pools_blue" {
     image_type      = each.value.image_type
     disk_size_gb    = each.value.disk_size_gb
     disk_type       = each.value.disk_type
+
+    metadata = {
+      disable-legacy-endpoints = true
+    }
+
     oauth_scopes = [
       "https://www.googleapis.com/auth/cloud-platform"
     ]

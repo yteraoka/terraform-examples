@@ -98,3 +98,47 @@ variable "node_pools" {
     }
   }
 }
+
+variable "datapath_provider" {
+  type        = string
+  description = "DATAPATH_PROVIDER_UNSPECIFIED | LEGACY_DATAPATH | ADVANCED_DATAPATH"
+  default     = "DATAPATH_PROVIDER_UNSPECIFIED"
+  validation {
+    condition     = can(regex("^(DATAPATH_PROVIDER_UNSPECIFIED|LEGACY_DATAPATH|ADVANCED_DATAPATH)$", var.datapath_provider))
+    error_message = "Unknown provider specified."
+  }
+}
+
+variable "network_policy_enabled" {
+  type        = bool
+  description = "network policy を有効にするかどうか"
+  default     = true
+}
+
+variable "authenticator_groups_config_group" {
+  type        = string
+  description = "有効にする場合は gke-security-groups@YOUR.DOMAIN を指定する"
+  default     = ""
+}
+
+variable "network_policy_provider" {
+  type        = string
+  description = "network policy の provider"
+  default     = "CALICO"
+}
+
+variable "default_max_pods_per_node" {
+  type        = number
+  description = "node ごとの pod の最大数であり、node に割り当てる CIDR の大きさとなる"
+  default     = 32
+}
+
+variable "release_channel" {
+  type        = string
+  description = "UNSPECIFIED, RAPID, REGULAR, STABLE"
+  default     = "REGULAR"
+  validation {
+    condition     = can(regex("^(UNSPECIFIED|RAPID|REGULAR|STABLE)$", var.release_channel))
+    error_message = "Unknown release_channel specified."
+  }
+}
