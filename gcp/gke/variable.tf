@@ -76,12 +76,13 @@ variable "node_pools" {
   )
   default = {
     pool1 = {
-      preemptible             = true
-      machine_type            = "e2-medium"
-      initial_node_count      = 1
-      disk_size_gb            = 100
-      disk_type               = "pd-standard"
-      image_type              = "COS_CONTAINERD"
+      preemptible        = true
+      machine_type       = "e2-medium"
+      initial_node_count = 1
+      disk_size_gb       = 100
+      disk_type          = "pd-standard"
+      image_type         = "COS_CONTAINERD"
+      #image_type              = "COS"
       ephemeral_storage_count = null
       autoscaling = {
         min_node_count = 1

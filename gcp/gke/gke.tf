@@ -4,33 +4,39 @@ resource "google_service_account" "node" {
 }
 
 resource "google_project_iam_member" "node_sa_log_writer" {
-  role   = "roles/logging.logWriter"
-  member = "serviceAccount:${google_service_account.node.email}"
+  project = var.project_id
+  role    = "roles/logging.logWriter"
+  member  = "serviceAccount:${google_service_account.node.email}"
 }
 
 resource "google_project_iam_member" "node_sa_metric_writer" {
-  role   = "roles/monitoring.metricWriter"
-  member = "serviceAccount:${google_service_account.node.email}"
+  project = var.project_id
+  role    = "roles/monitoring.metricWriter"
+  member  = "serviceAccount:${google_service_account.node.email}"
 }
 
 resource "google_project_iam_member" "node_sa_monitoring_viewer" {
-  role   = "roles/monitoring.viewer"
-  member = "serviceAccount:${google_service_account.node.email}"
+  project = var.project_id
+  role    = "roles/monitoring.viewer"
+  member  = "serviceAccount:${google_service_account.node.email}"
 }
 
 resource "google_project_iam_member" "node_sa_resource_metadata_writer" {
-  role   = "roles/stackdriver.resourceMetadata.writer"
-  member = "serviceAccount:${google_service_account.node.email}"
+  project = var.project_id
+  role    = "roles/stackdriver.resourceMetadata.writer"
+  member  = "serviceAccount:${google_service_account.node.email}"
 }
 
 resource "google_project_iam_member" "node_sa_resource_gcr" {
-  role   = "roles/storage.objectViewer"
-  member = "serviceAccount:${google_service_account.node.email}"
+  project = var.project_id
+  role    = "roles/storage.objectViewer"
+  member  = "serviceAccount:${google_service_account.node.email}"
 }
 
 resource "google_project_iam_member" "node_sa_resource_artifact_registry" {
-  role   = "roles/artifactregistry.reader"
-  member = "serviceAccount:${google_service_account.node.email}"
+  project = var.project_id
+  role    = "roles/artifactregistry.reader"
+  member  = "serviceAccount:${google_service_account.node.email}"
 }
 
 resource "google_container_cluster" "blue" {
@@ -40,9 +46,8 @@ resource "google_container_cluster" "blue" {
   name     = "${var.base_name}-blue"
   location = var.cluster_location
 
-  # We can't create a cluster with no node pool defined, but we want to only use
-  # separately managed node pools. So we create the smallest possible default
-  # node pool and immediately delete it.
+  # node pool 無しではクラスタは作成できないが、node pool は別途管理したいため
+  # default node pool はすぐに削除する
   remove_default_node_pool = true
   initial_node_count       = 1
 
@@ -171,7 +176,10 @@ resource "google_container_cluster" "blue" {
   }
 
   workload_identity_config {
-    identity_namespace = "${data.google_project.project.project_id}.svc.id.goog"
+    # 古い google provider での指定方法
+    #identity_namespace = "${data.google_project.project.project_id}.svc.id.goog"
+
+    workload_pool = "${data.google_project.project.project_id}.svc.id.goog"
   }
 
   # 同一 node 内の Pod 間通信を可視化するかどうか
@@ -189,7 +197,8 @@ resource "google_container_cluster" "blue" {
   # 明示的に指定できない
   # Dataplane V2 は 1.17.9 以降で指定可能
   # https://cloud.google.com/kubernetes-engine/docs/how-to/dataplane-v2
-  # Dataplane V2 はベータで node local DNS cache など、一部の機能が動作しない
+  # https://cloud.google.com/blog/products/containers-kubernetes/bringing-ebpf-and-cilium-to-google-kubernetes-engine
+  # 2021-05-10 に GKE 1.20.6-gke.700 から GA になった
   datapath_provider = var.datapath_provider
 
   # node 内での SNAT は無効にする
@@ -207,13 +216,10 @@ resource "google_container_cluster" "blue" {
     }
 
     # Dataplane V2 を使う場合は指定しない
-    #network_policy_config {
-    #  disabled = false
-    #}
     dynamic "network_policy_config" {
-      for_each = var.network_policy_enabled ? [{}] : []
+      for_each = var.datapath_provider == "ADVANCED_DATAPATH" ? [] : ["dummy"]
       content {
-        disabled = false
+        disabled = var.network_policy_enabled ? true : false
       }
     }
 
@@ -300,9 +306,9 @@ resource "google_container_cluster" "blue" {
 
   # API Server へアクセスする際の古い認証方法を無効にする
   master_auth {
-    # 両方空文字列にすることで Basic Auth を無効にする
-    username = ""
-    password = ""
+    # 古い google provider では両方空文字列にすることで Basic Auth を無効にする
+    #username = ""
+    #password = ""
 
     # クライアント証明書での認証を無効にする
     client_certificate_config {
@@ -344,6 +350,7 @@ resource "google_container_node_pool" "node_pools_blue" {
   location           = var.cluster_location
   cluster            = google_container_cluster.blue.name
   initial_node_count = each.value.autoscaling.min_node_count
+  version            = google_container_cluster.blue.master_version
   #node_count = each.value.autoscaling.min_node_count
 
   autoscaling {
